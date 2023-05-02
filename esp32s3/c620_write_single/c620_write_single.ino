@@ -5,6 +5,9 @@
 
   Just use 3.3 to power TJA1050
 
+  known issue 2: C620 will freeze sometimes, use esp32 works, esp32s3 will freeze c620 always
+  Solve: Power off c620 and turn back on.
+
 */
 
 #include "driver/twai.h"
@@ -74,7 +77,7 @@ static void transmit_message() {
   command.data[6] = 0x00;
   command.data[7] = 0x00;
 
-  short current = 500;
+  short current = 300;
   current = constrain(current, currentLowerLimit, currentUpperLimit);
   
   byte currentHB = (current >> 8) & 0xFF;
@@ -148,16 +151,12 @@ void loop() {
   }
 
   // Check if message is received
-  // if (alerts_triggered & TWAI_ALERT_RX_DATA) {
-  //   // One or more messages received. Handle all.
-  //   twai_message_t message;
-  //   while (twai_receive(&message, 0) == ESP_OK) {
-  //     // handle_rx_message(message);
-  //     transmit_message();
-  //     delay(10);
-  //   }
-  // }
-
-  transmit_message();
-  delay(100);
+  if (alerts_triggered & TWAI_ALERT_RX_DATA) {
+    // One or more messages received. Handle all.
+    twai_message_t message;
+    while (twai_receive(&message, 0) == ESP_OK) {
+      handle_rx_message(message);
+      transmit_message();
+    }
+  }
 }
