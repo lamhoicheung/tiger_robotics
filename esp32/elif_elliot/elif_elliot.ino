@@ -94,6 +94,8 @@ void setup() {
   // CYTRON
 
   // STEPPER
+  pinMode(STEPPER_PUL, OUTPUT);
+  pinMode(STEPPER_DIR, OUTPUT);
 
   // BLDC
   topRoller.attach(TOP_ROLLER);
