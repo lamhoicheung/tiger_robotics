@@ -1,4 +1,8 @@
 // LIBRARIES
+#include <PS4Controller.h>
+#include <ESP32Servo.h>
+#include <CytronMotorDriver.h>
+
 
 // PIN DEFINITIONS
 
@@ -20,19 +24,24 @@
   #define STOP 10
 
   // CYTRON
-  #define CYTRON_DIR 2
-  #define CYTRON_PWM 3
-  CytronMD motor(PWM_DIR, CYTRON_PWM, CYTRON_DIR);
+  #define CYTRON_DIR 33
+  #define CYTRON_PWM 32
+  CytronMD platformLift(PWM_DIR, CYTRON_PWM, CYTRON_DIR);
+  int liftSpeed = 0;
 
 
-  // STEPPER
-  #define STEPPER_DIR 4
-  #define STEPPER_PUL 5
+  // STEPPER, take 5V signals
+  #define STEPPER_DIR 16
+  #define STEPPER_PUL 17
   int stepper_speed = 28000;
 
-// GLOBAL FUNCTIONS
+  // BLDC, take 5V signals
+  Servo topRoller, bottomRoller;
+  #define TOP_ROLLER 18
+  #define BOTTOM_ROLLER 19
+  int rollerSpeed = 0;
 
-void setup() {
+// GLOBAL FUNCTIONS
 
   // PS4
 
@@ -42,25 +51,66 @@ void setup() {
 
   // STEPPER
 
+  // BLDC
+
+
+void setup() {
+
+  Serial.begin(115200);
+
+  // PS4
+  PS4.begin();
+
+  // C620
+
+  // CYTRON
+
+  // STEPPER
+
+  // BLDC
+  topRoller.attach(TOP_ROLLER);
+  bottomRoller.attach(BOTTOM_ROLLER);
+  topRoller.writeMicroseconds(1500);
+  bottomRoller.writeMicroseconds(1500);
+  delay(3000);
 }
 
 void loop() {
 
   // PS4
+  if (!PS4.isConnected()) {
+    // turn off all motors
+
+    return;
+  }
 
   // C620
 
   // CYTRON
-  motor.setSpeed(100); // range -255 to 255
+  if (PS4.Up()) liftSpeed = -255;
+  else if (PS4.Down()) liftSpeed = 255;
+  else liftSpeed = 0;
+  platformLift.setSpeed(liftSpeed); // range -255 to 255
 
   // STEPPER
-  // up
-  digitalWrite(STEPPER_DIR, HIGH);
-  tone(STEPPER_PUL, stepper_speed);   
-  // down
-  digitalWrite(STEPPER_DIR, LOW);
-  tone(STEPPER_PUL, stepper_speed);   
-  // stop
-  noTone(STEPPER_PUL);
+  if (PS4.R1()) {
+    digitalWrite(STEPPER_DIR, HIGH);
+    tone(STEPPER_PUL, stepper_speed); 
+  }
+  else if (PS4.L1()) {
+    digitalWrite(STEPPER_DIR, LOW);
+    tone(STEPPER_PUL, stepper_speed);   
+  }
+  else noTone(STEPPER_PUL);
+
+  // BLDC
+  if (PS4.Triangle()) rollerSpeed += 10; // need long delay and small increment otherwise speed changes rapidly, cause motor jerk
+  else if (PS4.Cross()) rollerSpeed -= 10;
+
+  rollerSpeed = constrain(rollerSpeed, 0, 500);
+  topRoller.writeMicroseconds(1500 + rollerSpeed);
+  // bottomRoller.writeMicroseconds(1500 - rollerSpeed);
+
+  delay(50); // delay required otherwise cytron will not work
 
 }
