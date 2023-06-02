@@ -1,5 +1,6 @@
 // LIBRARIES
 #include <PS4Controller.h>
+#include <driver/twai.h>
 #include <ESP32Servo.h>
 #include <CytronMotorDriver.h> // need to modify the header or cpp file, comment out ledWrite, directly use analogWrite
 
@@ -11,6 +12,12 @@
   // PS4
 
   // C620
+  #define RX_PIN 5
+  #define TX_PIN 4
+
+  const short currentLowerLimit = -1024;
+  const short currentUpperLimit = 1024;
+
   #define FORWARD 0
   #define BACKWARD 1
   #define LEFT 2
@@ -62,10 +69,33 @@ void setup() {
   PS4.begin();
 
   // C620
+    // Initialize configuration structures using macro initializers
+  twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)TX_PIN, (gpio_num_t)RX_PIN, TWAI_MODE_NORMAL);
+  twai_timing_config_t t_config = TWAI_TIMING_CONFIG_1MBITS();
+  twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+
+    // Install TWAI driver
+  if (twai_driver_install(&g_config, &t_config, &f_config) == ESP_OK) {
+    Serial.println("Driver installed");
+  } else {
+    Serial.println("Failed to install driver");
+    return;
+  }
+
+    // Start TWAI driver
+  if (twai_start() == ESP_OK) {
+    Serial.println("Driver started");
+  } else {
+    Serial.println("Failed to start driver");
+    return;
+  }
+
 
   // CYTRON
 
   // STEPPER
+  pinMode(STEPPER_PUL, OUTPUT);
+  pinMode(STEPPER_DIR, OUTPUT);
 
   // BLDC
   topRoller.attach(TOP_ROLLER);
@@ -77,6 +107,8 @@ void setup() {
 
 void loop() {
 
+
+
   // PS4
   if (!PS4.isConnected()) {
     // turn off all motors
@@ -84,13 +116,51 @@ void loop() {
     return;
   }
 
+
+
   // C620
+  short wheelAccel[4] = {800, 800, 800, 800};
+  byte currentBytes[4][2];
+
+    // split into bytes
+  for (int i = 0; i < 4; i++) {
+    byte currentHB = (wheelAccel[i] >> 8) & 0xFF;
+    byte currentLB = wheelAccel[i] & 0xFF;   
+
+    currentBytes[i][0] = currentHB;
+    currentBytes[i][1] = currentLB;
+  }
+
+    //Configure message to transmit
+  twai_message_t command;
+  command.identifier = 0x200;
+  command.extd = 0;
+  command.data_length_code = 8;
+  command.data[0] = currentBytes[0][0]; // motor 1
+  command.data[1] = currentBytes[0][1];
+  command.data[2] = currentBytes[1][0]; // motor 2
+  command.data[3] = currentBytes[1][1];
+  command.data[4] = currentBytes[2][0]; // motor 3
+  command.data[5] = currentBytes[2][1];
+  command.data[6] = currentBytes[3][0]; // motor 4
+  command.data[7] = currentBytes[3][1];
+
+  //Queue message for transmission
+  if (twai_transmit(&command, pdMS_TO_TICKS(1000)) == ESP_OK) {
+      Serial.println("Message queued for transmission");
+  } else {
+      Serial.println("Failed to queue message for transmission");
+  }
+
+
 
   // CYTRON
   if (PS4.Up()) liftSpeed = -255;
   else if (PS4.Down()) liftSpeed = 255;
   else liftSpeed = 0;
   platformLift.setSpeed(liftSpeed); // range -255 to 255
+
+
 
   // STEPPER
   if (PS4.R1()) {
@@ -102,6 +172,8 @@ void loop() {
     tone(STEPPER_PUL, stepper_speed);   
   }
   else noTone(STEPPER_PUL);
+
+
 
   // BLDC
   if (PS4.Triangle()) rollerSpeed += 10; // need long delay and small increment otherwise speed changes rapidly, causing motor jerk
