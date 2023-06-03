@@ -2,7 +2,7 @@
 #include <PS4Controller.h>
 #include <driver/twai.h>
 #include <ESP32Servo.h>
-#include <CytronMotorDriver.h>
+#include <CytronMotorDriver.h> // need to modify the header or cpp file, comment out ledWrite, directly use analogWrite
 
 
 // PIN DEFINITIONS
@@ -37,7 +37,7 @@
   int liftSpeed = 0;
 
 
-  // STEPPER, take 5V signals
+  // STEPPER, take 5V signals, still has some problem, fail to change direction
   #define STEPPER_DIR 16
   #define STEPPER_PUL 17
   int stepper_speed = 28000;
@@ -283,7 +283,7 @@ void loop() {
 
 
   // BLDC
-  if (PS4.Triangle()) rollerSpeed += 10; // need long delay and small increment otherwise speed changes rapidly, cause motor jerk
+  if (PS4.Triangle()) rollerSpeed += 10; // need long delay and small increment otherwise speed changes rapidly, causing motor jerk
   else if (PS4.Cross()) rollerSpeed -= 10;
 
   rollerSpeed = constrain(rollerSpeed, 0, 500);
