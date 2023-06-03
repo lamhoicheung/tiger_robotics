@@ -107,8 +107,6 @@ void setup() {
 
 void loop() {
 
-
-
   // PS4
   if (!PS4.isConnected()) {
     // turn off all motors
@@ -119,10 +117,119 @@ void loop() {
 
 
   // C620
-  short wheelAccel[4] = {800, 800, 800, 800};
-  byte currentBytes[4][2];
+
+    // read PS4 and set drive mode
+  const int deadband = 30;
+  int driveMode = STOP;
+
+  if (PS4.L1() == 1 && PS4.R1() == 1) {
+    if (abs(PS4.LStickX()) <= deadband && PS4.LStickY() >= deadband) driveMode = FORWARD;
+    else if (abs(PS4.LStickX()) <= deadband && PS4.LStickY() <= -deadband) driveMode = BACKWARD;
+    else if (abs(PS4.LStickY()) <= deadband && PS4.LStickX() >= deadband) driveMode = RIGHT;
+    else if (abs(PS4.LStickY()) <= deadband && PS4.LStickX() <= -deadband) driveMode = LEFT;
+    else if (PS4.LStickX() <= -deadband && PS4.LStickY() >= deadband) driveMode = FORWARD_LEFT;
+    else if (PS4.LStickX() <= -deadband && PS4.LStickY() <= -deadband) driveMode = BACKWARD_LEFT;
+    else if (PS4.LStickX() >= deadband && PS4.LStickY() >= deadband) driveMode = FORWARD_RIGHT;
+    else if (PS4.LStickX() >= deadband && PS4.LStickY() <= -deadband) driveMode = BACKWARD_RIGHT;
+  }
+  else if (PS4.L1() == 1 && PS4.R1() == 0 && 
+          abs(PS4.LStickX()) <= deadband && abs(PS4.LStickY()) <= deadband) driveMode = ROTATE_CW;
+  else if (PS4.L1() == 0 && PS4.R1() == 1 && 
+          abs(PS4.LStickX()) <= deadband && abs(PS4.LStickY()) <= deadband) driveMode = ROTATE_CCW;
+
+
+    // calculate motor speeds according to drive mode
+  int nominalAccel = 1000;
+  int accelMultiplier = 1;
+
+  if (PS4.Square() == 0) accelMultiplier = 2;
+  else accelMultiplier = 1;
+
+  short wheelAccel[4] = {0, 0, 0, 0};
+
+  switch (driveMode) {
+    case FORWARD:
+      wheelAccel[0] = nominalAccel * accelMultiplier;
+      wheelAccel[1] = nominalAccel * accelMultiplier;
+      wheelAccel[2] = -nominalAccel * accelMultiplier;
+      wheelAccel[3] = -nominalAccel * accelMultiplier;
+      break;
+
+    case BACKWARD:
+      wheelAccel[0] = -nominalAccel * accelMultiplier;
+      wheelAccel[1] = -nominalAccel * accelMultiplier;
+      wheelAccel[2] = nominalAccel * accelMultiplier;
+      wheelAccel[3] = nominalAccel * accelMultiplier;
+      break;
+
+    case LEFT:
+      wheelAccel[0] = -nominalAccel * accelMultiplier;
+      wheelAccel[1] = nominalAccel * accelMultiplier;
+      wheelAccel[2] = -nominalAccel * accelMultiplier;
+      wheelAccel[3] = nominalAccel * accelMultiplier;
+      break;
+
+    case RIGHT:
+      wheelAccel[0] = nominalAccel * accelMultiplier;
+      wheelAccel[1] = -nominalAccel * accelMultiplier;
+      wheelAccel[2] = nominalAccel * accelMultiplier;
+      wheelAccel[3] = -nominalAccel * accelMultiplier;
+      break;
+
+    case FORWARD_LEFT:
+      wheelAccel[0] = 0;
+      wheelAccel[1] = nominalAccel * accelMultiplier;
+      wheelAccel[2] = -nominalAccel * accelMultiplier;
+      wheelAccel[3] = 0;
+      break;
+
+    case FORWARD_RIGHT:
+      wheelAccel[0] = nominalAccel * accelMultiplier;
+      wheelAccel[1] = 0;
+      wheelAccel[2] = 0;
+      wheelAccel[3] = -nominalAccel * accelMultiplier;
+      break;
+
+    case BACKWARD_LEFT:
+      wheelAccel[0] = -nominalAccel * accelMultiplier;
+      wheelAccel[1] = 0;
+      wheelAccel[2] = 0;
+      wheelAccel[3] = nominalAccel * accelMultiplier;
+      break;
+
+    case BACKWARD_RIGHT:
+      wheelAccel[0] = 0;
+      wheelAccel[1] = -nominalAccel * accelMultiplier;
+      wheelAccel[2] = nominalAccel * accelMultiplier;
+      wheelAccel[3] = 0;
+      break;
+
+    case ROTATE_CW:
+      wheelAccel[0] = nominalAccel * accelMultiplier;
+      wheelAccel[1] = nominalAccel * accelMultiplier;
+      wheelAccel[2] = nominalAccel * accelMultiplier;
+      wheelAccel[3] = nominalAccel * accelMultiplier;
+      break;
+
+    case ROTATE_CCW:
+      wheelAccel[0] = -nominalAccel * accelMultiplier;
+      wheelAccel[1] = -nominalAccel * accelMultiplier;
+      wheelAccel[2] = -nominalAccel * accelMultiplier;
+      wheelAccel[3] = -nominalAccel * accelMultiplier;
+      break;
+
+    default:
+      wheelAccel[0] = 0;    
+      wheelAccel[1] = 0;    
+      wheelAccel[2] = 0;    
+      wheelAccel[3] = 0;    
+      break;
+  }  
+
 
     // split into bytes
+  byte currentBytes[4][2];
+
   for (int i = 0; i < 4; i++) {
     byte currentHB = (wheelAccel[i] >> 8) & 0xFF;
     byte currentLB = wheelAccel[i] & 0xFF;   
@@ -163,11 +270,11 @@ void loop() {
 
 
   // STEPPER
-  if (PS4.R1()) {
+  if (PS4.RStickY() > 200) {
     digitalWrite(STEPPER_DIR, HIGH);
     tone(STEPPER_PUL, stepper_speed); 
   }
-  else if (PS4.L1()) {
+  else if (PS4.RStickY() < -200) {
     digitalWrite(STEPPER_DIR, LOW);
     tone(STEPPER_PUL, stepper_speed);   
   }
