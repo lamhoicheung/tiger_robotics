@@ -123,7 +123,9 @@ void loop() {
   const int deadband = 30;
   int driveMode = STOP;
 
-  if (PS4.L1() == 1 && PS4.R1() == 1) {
+  // Serial.println(PS4.L1()); 
+
+  if (PS4.L1() == 0 && PS4.R1() == 0) {
     if (abs(PS4.LStickX()) <= deadband && PS4.LStickY() >= deadband) driveMode = FORWARD;
     else if (abs(PS4.LStickX()) <= deadband && PS4.LStickY() <= -deadband) driveMode = BACKWARD;
     else if (abs(PS4.LStickY()) <= deadband && PS4.LStickX() >= deadband) driveMode = RIGHT;
@@ -143,7 +145,9 @@ void loop() {
   int nominalAccel = 1000;
   int accelMultiplier = 1;
 
-  if (PS4.Square() == 0) accelMultiplier = 2;
+  // Serial.println(driveMode);
+
+  if (PS4.Square() == 1) accelMultiplier = 2;
   else accelMultiplier = 1;
 
   short wheelAccel[4] = {0, 0, 0, 0};
@@ -206,17 +210,17 @@ void loop() {
       break;
 
     case ROTATE_CW:
-      wheelAccel[0] = nominalAccel * accelMultiplier;
-      wheelAccel[1] = nominalAccel * accelMultiplier;
-      wheelAccel[2] = nominalAccel * accelMultiplier;
-      wheelAccel[3] = nominalAccel * accelMultiplier;
-      break;
-
-    case ROTATE_CCW:
       wheelAccel[0] = -nominalAccel * accelMultiplier;
       wheelAccel[1] = -nominalAccel * accelMultiplier;
       wheelAccel[2] = -nominalAccel * accelMultiplier;
       wheelAccel[3] = -nominalAccel * accelMultiplier;
+      break;
+
+    case ROTATE_CCW:
+      wheelAccel[0] = nominalAccel * accelMultiplier;
+      wheelAccel[1] = nominalAccel * accelMultiplier;
+      wheelAccel[2] = nominalAccel * accelMultiplier;
+      wheelAccel[3] = nominalAccel * accelMultiplier;
       break;
 
     default:
