@@ -1,15 +1,7 @@
 // LIBRARIES
 #include <PS4Controller.h>
 #include <driver/twai.h>
-#include <ESP32Servo.h>
-#include <CytronMotorDriver.h> // need to modify the header or cpp file, comment out ledWrite, directly use analogWrite
 
-
-// GLOBAL VARIABLES/FUNCTINOS
-
-  // PS4
-
-  // C620
 
   #define CAN_RX_PIN 5
   #define CAN_TX_PIN 4
@@ -30,7 +22,7 @@
 
   class C620 {
     private:
-      double feedback, control, setpoint;
+      double feedback, setpoint;
       double Kp, Ki, Kd;
       int T;
       unsigned long lastTime;
@@ -39,6 +31,7 @@
 
     public:
       int id;
+      double control;
       short position;
       short velocity;
 
@@ -46,7 +39,7 @@
         this->id = id;
 
         Kp = 1;
-        Ki = 0.01;
+        Ki = 0.005;
         Kd = 0;
 
         T = 10;
@@ -87,42 +80,13 @@
           lastErr = err;
           lastTime = millis();
       }
+      }
   };
 
   C620 frontLeftWheel(0x201);
   C620 backLeftWheel(0x202);
   C620 frontRightWheel(0x203);
   C620 backRightWheel(0x204);
-
-  // CYTRON
-  #define CYTRON_DIR 33
-  #define CYTRON_PWM 32
-  CytronMD platformLift(PWM_DIR, CYTRON_PWM, CYTRON_DIR);
-  int liftSpeed = 0;
-
-
-  // STEPPER, take 5V signals, still has some problem, fail to change direction
-  #define STEPPER_DIR 16
-  #define STEPPER_PUL 17
-  int stepper_speed = 28000;
-
-  // BLDC, take 5V signals
-  Servo topRoller, bottomRoller;
-  #define TOP_ROLLER 18
-  #define BOTTOM_ROLLER 19
-  int rollerSpeed = 0;
-
-// GLOBAL FUNCTIONS
-
-  // PS4
-
-  // C620
-
-  // CYTRON
-
-  // STEPPER
-
-  // BLDC
 
 
 void setup() {
@@ -153,20 +117,6 @@ void setup() {
     Serial.println("Failed to start driver");
     return;
   }
-
-
-  // CYTRON
-
-  // STEPPER
-  pinMode(STEPPER_PUL, OUTPUT);
-  pinMode(STEPPER_DIR, OUTPUT);
-
-  // BLDC
-  topRoller.attach(TOP_ROLLER);
-  bottomRoller.attach(BOTTOM_ROLLER);
-  topRoller.writeMicroseconds(1500);
-  bottomRoller.writeMicroseconds(1500);
-  delay(3000);
 }
 
 void loop() {
@@ -203,7 +153,7 @@ void loop() {
 
 
     // calculate motor speeds according to drive mode
-  int nominalSpeed = 1000;
+  int nominalSpeed = 2000;
   int speedMultiplier = 1;
 
   if (PS4.Square() == 1) speedMultiplier = 2;
@@ -361,38 +311,5 @@ void loop() {
   } else {
       Serial.println("Failed to queue message for transmission");
   }
-
-
-
-  // CYTRON
-  // if (PS4.Up()) liftSpeed = -255;
-  // else if (PS4.Down()) liftSpeed = 255;
-  // else liftSpeed = 0;
-  // platformLift.setSpeed(liftSpeed); // range -255 to 255
-
-
-
-  // STEPPER
-  // if (PS4.RStickY() > 200) {
-  //   digitalWrite(STEPPER_DIR, HIGH);
-  //   tone(STEPPER_PUL, stepper_speed); 
-  // }
-  // else if (PS4.RStickY() < -200) {
-  //   digitalWrite(STEPPER_DIR, LOW);
-  //   tone(STEPPER_PUL, stepper_speed);   
-  // }
-  // else noTone(STEPPER_PUL);
-
-
-
-  // BLDC
-  // if (PS4.Triangle()) rollerSpeed += 10; // need long delay and small increment otherwise speed changes rapidly, causing motor jerk
-  // else if (PS4.Cross()) rollerSpeed -= 10;
-
-  // rollerSpeed = constrain(rollerSpeed, 0, 500);
-  // topRoller.writeMicroseconds(1500 + rollerSpeed);
-  // // bottomRoller.writeMicroseconds(1500 - rollerSpeed);
-
-  delay(50); // delay required otherwise cytron will not work
 
 }
