@@ -45,8 +45,8 @@
 
   // BLDC, take 5V signals
   Servo topRoller, bottomRoller;
-  #define TOP_ROLLER 18
-  #define BOTTOM_ROLLER 19
+  #define TOP_ROLLER 19
+  #define BOTTOM_ROLLER 18
   int rollerSpeed = 0;
 
 // GLOBAL FUNCTIONS
@@ -91,6 +91,8 @@ void setup() {
     return;
   }
 
+  delay(2000);
+
 
   // CYTRON
 
@@ -103,7 +105,7 @@ void setup() {
   bottomRoller.attach(BOTTOM_ROLLER);
   topRoller.writeMicroseconds(1500);
   bottomRoller.writeMicroseconds(1500);
-  delay(3000);
+  delay(2000);
 }
 
 void loop() {
@@ -293,7 +295,7 @@ void loop() {
 
   rollerSpeed = constrain(rollerSpeed, 0, 500);
   topRoller.writeMicroseconds(1500 + rollerSpeed);
-  // bottomRoller.writeMicroseconds(1500 - rollerSpeed);
+  bottomRoller.writeMicroseconds(1500 + rollerSpeed);
 
   delay(50); // delay required otherwise cytron will not work
 
