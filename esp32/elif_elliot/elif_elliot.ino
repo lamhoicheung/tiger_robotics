@@ -32,9 +32,12 @@
   #define STOP 10
 
   // CYTRON
-  #define CYTRON_DIR 33
-  #define CYTRON_PWM 32
-  CytronMD platformLift(PWM_DIR, CYTRON_PWM, CYTRON_DIR);
+  #define LIFT_R_DIR 33
+  #define LIFT_R_PWM 32
+  #define LIFT_L_DIR 25
+  #define LIFT_L_PWM 26
+  CytronMD LIFT_R(PWM_DIR, LIFT_R_PWM, LIFT_R_DIR);
+  CytronMD LIFT_L(PWM_DIR, LIFT_L_PWM, LIFT_L_DIR);
   int liftSpeed = 0;
 
 
@@ -260,11 +263,11 @@ void loop() {
   command.data[7] = currentBytes[3][1];
 
   //Queue message for transmission
-  if (twai_transmit(&command, pdMS_TO_TICKS(1000)) == ESP_OK) {
-      Serial.println("Message queued for transmission");
-  } else {
-      Serial.println("Failed to queue message for transmission");
-  }
+  // if (twai_transmit(&command, pdMS_TO_TICKS(1000)) == ESP_OK) {
+  //     Serial.println("Message queued for transmission");
+  // } else {
+  //     Serial.println("Failed to queue message for transmission");
+  // }
 
 
 
@@ -272,7 +275,8 @@ void loop() {
   if (PS4.Up()) liftSpeed = -255;
   else if (PS4.Down()) liftSpeed = 255;
   else liftSpeed = 0;
-  platformLift.setSpeed(liftSpeed); // range -255 to 255
+  LIFT_R.setSpeed(liftSpeed); // range -255 to 255
+  LIFT_L.setSpeed(-1*liftSpeed);
 
 
 
@@ -296,6 +300,8 @@ void loop() {
   rollerSpeed = constrain(rollerSpeed, 0, 500);
   topRoller.writeMicroseconds(1500 + rollerSpeed);
   bottomRoller.writeMicroseconds(1500 + rollerSpeed);
+
+  // Serial.println(rollerSpeed);
 
   delay(50); // delay required otherwise cytron will not work
 
