@@ -299,7 +299,7 @@ void loop() {
 
   rollerSpeed = constrain(rollerSpeed, 0, 500);
   topRoller.writeMicroseconds(1500 + rollerSpeed);
-  bottomRoller.writeMicroseconds(1500 + rollerSpeed);
+  bottomRoller.writeMicroseconds(1500 - rollerSpeed);
 
   // Serial.println(rollerSpeed);
 
