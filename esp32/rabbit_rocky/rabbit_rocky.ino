@@ -17,9 +17,11 @@
 // SERVO ANGLE
 
 #define LEFT_SERVO_OPEN 65
-#define LEFT_SERVO_CLOSE 90
+#define LEFT_SERVO_CLOSE 95 // ori: 90
 #define RIGHT_SERVO_OPEN 125
-#define RIGHT_SERVO_CLOSE 100
+#define RIGHT_SERVO_CLOSE 95 // ori: 100
+float left_hand_pos = LEFT_SERVO_OPEN;
+float right_hand_pos = RIGHT_SERVO_OPEN;
 
 // ROBOT STATE DEFINITION
 
@@ -44,12 +46,18 @@ Servo leftWheel, rightWheel;
 void driveServo(int mode) {
 
   if (mode == GRIPPER_OPEN) {
-    leftHand.write(LEFT_SERVO_OPEN);
-    rightHand.write(RIGHT_SERVO_OPEN);
+    left_hand_pos = LEFT_SERVO_OPEN;
+    right_hand_pos = RIGHT_SERVO_OPEN;
+    leftHand.write(left_hand_pos);
+    rightHand.write(right_hand_pos);
   }
   else if (mode == GRIPPER_CLOSE) {
-    leftHand.write(LEFT_SERVO_CLOSE);
-    rightHand.write(RIGHT_SERVO_CLOSE);    
+    left_hand_pos += 0.5;
+    right_hand_pos -= 0.5;
+    left_hand_pos = constrain(left_hand_pos, LEFT_SERVO_OPEN, LEFT_SERVO_CLOSE);
+    right_hand_pos = constrain(right_hand_pos, RIGHT_SERVO_CLOSE, RIGHT_SERVO_OPEN);
+    leftHand.write(left_hand_pos);
+    rightHand.write(right_hand_pos);    
   }
 
 }
@@ -112,8 +120,15 @@ void calculateSpeed(int &left_motor_speed, int &right_motor_speed) {
   left = constrain(left, 1000, 2000);
   right = constrain(right, 1000, 2000);
 
-  left = map(left, 1000, 2000, 1600, 1400);
-  right = map(right, 1000, 2000, 1400, 1600);
+  if (PS4.R2() == 1) { // high speed mode
+    left = map(left, 1000, 2000, 1650, 1350);
+    right = map(right, 1000, 2000, 1350, 1650);    
+  }
+  else {
+    left = map(left, 1000, 2000, 1550, 1450);
+    right = map(right, 1000, 2000, 1450, 1550);
+  }
+
 
   // if (DEBUG_SPEED_CALCULATION) {
   //   Serial.print(left); Serial.print('\t');
@@ -151,6 +166,7 @@ void setup() {
 
   pinMode(C620_CALIBRATION, INPUT_PULLUP);
 
+  driveServo(GRIPPER_OPEN);
 }
 
 void loop() {
