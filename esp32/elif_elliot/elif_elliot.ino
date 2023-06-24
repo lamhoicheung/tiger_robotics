@@ -44,7 +44,7 @@
   // STEPPER, take 5V signals, still has some problem, fail to change direction
   #define STEPPER_DIR 16
   #define STEPPER_PUL 17
-  int stepper_speed = 28000;
+  int stepper_speed = 32000; //28000
 
   // BLDC, take 5V signals
   Servo topRoller, bottomRoller;
@@ -281,11 +281,11 @@ void loop() {
 
 
   // STEPPER
-  if (PS4.RStickY() > 200) {
+  if (PS4.RStickY() > 50) {
     digitalWrite(STEPPER_DIR, HIGH);
     tone(STEPPER_PUL, stepper_speed); 
   }
-  else if (PS4.RStickY() < -200) {
+  else if (PS4.RStickY() < -50) {
     digitalWrite(STEPPER_DIR, LOW);
     tone(STEPPER_PUL, stepper_speed);   
   }

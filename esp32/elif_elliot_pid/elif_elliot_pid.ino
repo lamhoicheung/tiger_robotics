@@ -1,100 +1,132 @@
 // LIBRARIES
 #include <PS4Controller.h>
 #include <driver/twai.h>
+#include <ESP32Servo.h>
 
 
-  #define CAN_RX_PIN 5
-  #define CAN_TX_PIN 4
 
-  #define FORWARD 0
-  #define BACKWARD 1
-  #define LEFT 2
-  #define RIGHT 3
-  #define FORWARD_LEFT 4
-  #define FORWARD_RIGHT 5
-  #define BACKWARD_LEFT 6
-  #define BACKWARD_RIGHT 7
-  #define ROTATE_CW 8
-  #define ROTATE_CCW 9
-  #define STOP 10
+// #############################
+// DEFINITIONS, GLOBAL VARIABLES
+// #############################
 
-  short c620StatusBuffer[4][2];
 
-  class C620 {
-    private:
-      double feedback, setpoint;
-      double Kp, Ki, Kd;
-      int T;
-      unsigned long lastTime;
-      double totalErr, lastErr;
-      int controlLimit;
 
-    public:
-      int id;
-      double control;
-      short position;
-      short velocity;
+// SHOOTER (BLDC), TAKE 5V SIGNALS
+Servo topRoller, bottomRoller;
+#define TOP_ROLLER 19
+#define BOTTOM_ROLLER 18
+int rollerSpeed = 0;
 
-      C620(int id) {
-        this->id = id;
 
-        Kp = 1;
-        Ki = 0.005;
-        Kd = 0;
+// PUSHER (STEPPER), TAKE 5V SIGNALS
+#define STEPPER_DIR 16
+#define STEPPER_PUL 17
 
-        T = 10;
+int stepper_speed = 32000;
 
-        lastTime = 0;
-        totalErr = 0;
-        lastErr = 0;
-        controlLimit = 10000;
+
+// C620
+#define CAN_RX_PIN 5
+#define CAN_TX_PIN 4
+
+#define FORWARD 0
+#define BACKWARD 1
+#define LEFT 2
+#define RIGHT 3
+#define FORWARD_LEFT 4
+#define FORWARD_RIGHT 5
+#define BACKWARD_LEFT 6
+#define BACKWARD_RIGHT 7
+#define ROTATE_CW 8
+#define ROTATE_CCW 9
+#define STOP 10
+
+short c620StatusBuffer[4][2];
+
+class C620 {
+  private:
+    double feedback, setpoint;
+    double Kp, Ki, Kd;
+    int T;
+    unsigned long lastTime;
+    double totalErr, lastErr;
+    int controlLimit;
+
+  public:
+    int id;
+    double control;
+    short position;
+    short velocity;
+
+    C620(int id) {
+      this->id = id;
+
+      Kp = 1;
+      Ki = 0.005;
+      Kd = 0;
+
+      T = 10;
+
+      lastTime = 0;
+      totalErr = 0;
+      lastErr = 0;
+      controlLimit = 10000;
+    }
+
+    void read() {
+
+      position = c620StatusBuffer[id - 0x201][0];
+      velocity = c620StatusBuffer[id - 0x201][1];
+
+    }
+
+    void setSpeed(short rpm) {
+      // PID
+      setpoint = rpm;
+      feedback = velocity;
+
+      unsigned long now = millis();
+
+      if (now - lastTime >= T) {
+
+        double err = setpoint - feedback;
+
+        totalErr += err;
+        totalErr = constrain(totalErr, -controlLimit, controlLimit);
+
+        double deltaErr = err - lastErr;
+
+        control = Kp*err + (Ki*T)*totalErr + (Kd/T)*deltaErr;
+
+        control = constrain(control, -controlLimit, controlLimit);
+
+        lastErr = err;
+        lastTime = millis();
       }
+    }
+};
 
-      void read() {
+C620 frontLeftWheel(0x201);
+C620 backLeftWheel(0x202);
+C620 frontRightWheel(0x203);
+C620 backRightWheel(0x204);
 
-        position = c620StatusBuffer[id - 0x201][0];
-        velocity = c620StatusBuffer[id - 0x201][1];
 
-      }
 
-      void setSpeed(short rpm) {
-        // PID
-        setpoint = rpm;
-        feedback = velocity;
+// #############################
+// SETUP
+// #############################
 
-        unsigned long now = millis();
-
-        if (now - lastTime >= T) {
-
-          double err = setpoint - feedback;
-
-          totalErr += err;
-          totalErr = constrain(totalErr, -controlLimit, controlLimit);
-
-          double deltaErr = err - lastErr;
-
-          control = Kp*err + (Ki*T)*totalErr + (Kd/T)*deltaErr;
-
-          control = constrain(control, -controlLimit, controlLimit);
-
-          lastErr = err;
-          lastTime = millis();
-      }
-      }
-  };
-
-  C620 frontLeftWheel(0x201);
-  C620 backLeftWheel(0x202);
-  C620 frontRightWheel(0x203);
-  C620 backRightWheel(0x204);
 
 
 void setup() {
 
   Serial.begin(115200);
 
+
   // PS4
   PS4.begin();
+
 
   // C620
     // Initialize configuration structures using macro initializers
@@ -117,24 +149,65 @@ void setup() {
     Serial.println("Failed to start driver");
     return;
   }
+
+
+  // -------------------- PUSHER (STEPPER) --------------------
+  pinMode(STEPPER_PUL, OUTPUT);
+  pinMode(STEPPER_DIR, OUTPUT);
+
+
+  // -------------------- SHOOTER (BLDC) --------------------
+  topRoller.attach(TOP_ROLLER);
+  bottomRoller.attach(BOTTOM_ROLLER);
+  topRoller.writeMicroseconds(1500);
+  bottomRoller.writeMicroseconds(1500);
+
+  delay(500);
 }
+
+
+
+// #############################
+// LOOP
+// #############################
+
+
 
 void loop() {
 
   // PS4
   if (!PS4.isConnected()) {
-    // turn off all motors
-
     return;
   }
 
 
-  // C620
+  // -------------------- SHOOTER (BLDC) --------------------
+  if (PS4.Triangle()) rollerSpeed += 10; // need long delay and small increment otherwise speed changes rapidly, causing motor jerk
+  else if (PS4.Cross()) rollerSpeed -= 10;
 
-    // read PS4 and set drive mode
+  rollerSpeed = constrain(rollerSpeed, 0, 500);
+  topRoller.writeMicroseconds(1500 + rollerSpeed);
+  bottomRoller.writeMicroseconds(1500 + rollerSpeed);
+
+
+  // -------------------- PUSHER (STEPPER) --------------------
+  if (PS4.RStickY() > 50) {
+    digitalWrite(STEPPER_DIR, LOW);
+    tone(STEPPER_PUL, stepper_speed); 
+  }
+  else if (PS4.RStickY() < -50) {
+    digitalWrite(STEPPER_DIR, HIGH);
+    tone(STEPPER_PUL, stepper_speed);   
+  }
+  else noTone(STEPPER_PUL);
+
+
+
+  // -------------------- C620 --------------------
+
+  // read PS4 and set drive mode
   const int deadband = 30;
   int driveMode = STOP;
-
 
   if (PS4.L1() == 0 && PS4.R1() == 0) {
     if (abs(PS4.LStickX()) <= deadband && PS4.LStickY() >= deadband) driveMode = FORWARD;
@@ -291,7 +364,7 @@ void loop() {
     currentBytes[i][1] = currentLB;
   }
 
-    //Configure message to transmit
+  //Configure message to transmit
   twai_message_t command;
   command.identifier = 0x200;
   command.extd = 0;
