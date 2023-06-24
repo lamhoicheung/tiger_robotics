@@ -1,18 +1,29 @@
 // LIBRARIES
 #include <PS4Controller.h>
-#include <driver/twai.h>
-#include <ESP32Servo.h>
+#include <ESP32Servo.h> // Servo available on: 2,4,5,12-19,21-23,25-27,32-33
 
+/*
+  Start up sequence
+
+  1. Switch to Calibration Mode
+  2. Connect PS4
+  3. Push Right Y stick to top
+  4. Turn on motor power
+  5. Once you see solid green light on C620, push Right Y stick to bottom, hold until you see blinking ornage
+  6. Release right stick
+  7. When you see blinking green, okay
+  8. Switch to operation mode
+
+*/
 
 
 // #############################
 // DEFINITIONS, GLOBAL VARIABLES
 // #############################
 
-bool debugPS4 = true;
 
-
-// PS4 BUTTON PRESS
+// PS4
+bool debugPS4 = false;
 bool lastSpeedUpButtonState = 0;
 bool lastSpeedDownButtonState = 0;
 
@@ -31,9 +42,12 @@ int speedSelect = 0;
 int stepper_speed = 32000;
 
 
-// C620
-#define CAN_RX_PIN 5
-#define CAN_TX_PIN 4
+// C620, take 3.3V PWM signals
+#define C620_PWM_1 33
+#define C620_PWM_2 25
+#define C620_PWM_3 26
+#define C620_PWM_4 27
+#define CALIBRATION_SWITCH 32
 
 #define FORWARD 0
 #define BACKWARD 1
@@ -47,76 +61,24 @@ int stepper_speed = 32000;
 #define ROTATE_CCW 9
 #define STOP 10
 
-short c620StatusBuffer[4][2];
+Servo frontLeftWheel;
+Servo backLeftWheel;
+Servo frontRightWheel;
+Servo backRightWheel;
 
-class C620 {
-  private:
-    double feedback, setpoint;
-    double Kp, Ki, Kd;
-    int T;
-    unsigned long lastTime;
-    double totalErr, lastErr;
-    int controlLimit;
 
-  public:
-    int id;
-    double control;
-    short position;
-    short velocity;
+void calibrateC620() {
 
-    C620(int id) {
-      this->id = id;
+  int wheelSpeed = map(PS4.RStickY(), -128, 128, 1000, 2000);
 
-      Kp = 1;
-      Ki = 0.005;
-      Kd = 0;
+  // Serial.println(wheelSpeed);
 
-      T = 10;
+  frontLeftWheel.writeMicroseconds(wheelSpeed);
+  backLeftWheel.writeMicroseconds(wheelSpeed);
+  frontRightWheel.writeMicroseconds(wheelSpeed);
+  backRightWheel.writeMicroseconds(wheelSpeed);
 
-      lastTime = 0;
-      totalErr = 0;
-      lastErr = 0;
-      controlLimit = 10000;
-    }
-
-    void read() {
-
-      position = c620StatusBuffer[id - 0x201][0];
-      velocity = c620StatusBuffer[id - 0x201][1];
-
-    }
-
-    void setSpeed(short rpm) {
-      // PID
-      setpoint = rpm;
-      feedback = velocity;
-
-      unsigned long now = millis();
-
-      if (now - lastTime >= T) {
-
-        double err = setpoint - feedback;
-
-        totalErr += err;
-        totalErr = constrain(totalErr, -controlLimit, controlLimit);
-
-        double deltaErr = err - lastErr;
-
-        control = Kp*err + (Ki*T)*totalErr + (Kd/T)*deltaErr;
-
-        control = constrain(control, -controlLimit, controlLimit);
-
-        lastErr = err;
-        lastTime = millis();
-      }
-    }
-};
-
-C620 frontLeftWheel(0x201);
-C620 backLeftWheel(0x202);
-C620 frontRightWheel(0x203);
-C620 backRightWheel(0x204);
-
+}
 
 
 // #############################
@@ -129,44 +91,22 @@ void setup() {
 
   Serial.begin(115200);
 
-
   // PS4
   PS4.begin();
+
   if (!PS4.isConnected()) delay(500);
 
-
-
-
   // C620
-    // Initialize configuration structures using macro initializers
-  twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)CAN_TX_PIN, (gpio_num_t)CAN_RX_PIN, TWAI_MODE_NORMAL);
-  twai_timing_config_t t_config = TWAI_TIMING_CONFIG_1MBITS();
-  twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-
-    // Install TWAI driver
-  if (twai_driver_install(&g_config, &t_config, &f_config) == ESP_OK) {
-    // Serial.println("Driver installed");
-  } else {
-    // Serial.println("Failed to install driver");
-    return;
-  }
-
-  delay(500);
-
-    // Start TWAI driver
-  if (twai_start() == ESP_OK) {
-    // Serial.println("Driver started");
-  } else {
-    // Serial.println("Failed to start driver");
-    return;
-  }
-
-  delay(500);
+  pinMode(CALIBRATION_SWITCH, INPUT_PULLUP);
+  frontLeftWheel.attach(C620_PWM_1);
+  backLeftWheel.attach(C620_PWM_2);
+  frontRightWheel.attach(C620_PWM_3);
+  backRightWheel.attach(C620_PWM_4);
 
 
-  // -------------------- PUSHER (STEPPER) --------------------
-  pinMode(STEPPER_PUL, OUTPUT);
-  pinMode(STEPPER_DIR, OUTPUT);
+  // // -------------------- PUSHER (STEPPER) --------------------
+  // pinMode(STEPPER_PUL, OUTPUT);
+  // pinMode(STEPPER_DIR, OUTPUT);
 
 
   // -------------------- SHOOTER (BLDC) --------------------
@@ -186,11 +126,22 @@ void setup() {
 
 void loop() {
 
-  // PS4
-  if (!PS4.isConnected()) {
-    return;
+  while (debugPS4) {
+    int up = PS4.Up();
+    int leftX = PS4.LStickX();
+    int square = PS4.Square();
+
+    Serial.print(up); Serial.print('/t');
+    Serial.print(leftX); Serial.print('/t');
+    Serial.print(square); Serial.print('/t');
+    Serial.println();
+
+    delay(200);
   }
 
+  while (digitalRead(CALIBRATION_SWITCH) == 1) {
+    calibrateC620();
+  }
 
   // -------------------- SHOOTER (BLDC) --------------------
 
@@ -201,7 +152,6 @@ void loop() {
     }
   }
   lastSpeedUpButtonState = PS4.Triangle();
-
 
 
   if (PS4.Cross() != lastSpeedDownButtonState) {
@@ -215,25 +165,24 @@ void loop() {
   // Serial.println(speedSelect);
 
 
-  // if (PS4.Triangle()) rollerSpeed += 10; // need long delay and small increment otherwise speed changes rapidly, causing motor jerk
-  // else if (PS4.Cross()) rollerSpeed -= 10;
+  // // if (PS4.Triangle()) rollerSpeed += 10; // need long delay and small increment otherwise speed changes rapidly, causing motor jerk
+  // // else if (PS4.Cross()) rollerSpeed -= 10;
 
-  // rollerSpeed = constrain(rollerSpeed, 0, 500);
+  // // rollerSpeed = constrain(rollerSpeed, 0, 500);
   topRoller.writeMicroseconds(1500 + rollerSpeeds[speedSelect]);
   bottomRoller.writeMicroseconds(1500 + rollerSpeeds[speedSelect]);
 
 
-  // -------------------- PUSHER (STEPPER) --------------------
-  if (PS4.RStickY() > 50) {
-    digitalWrite(STEPPER_DIR, LOW);
-    tone(STEPPER_PUL, stepper_speed);
-    Serial.println("moving");
-  }
-  else if (PS4.RStickY() < -50) {
-    digitalWrite(STEPPER_DIR, HIGH);
-    tone(STEPPER_PUL, stepper_speed);   
-  }
-  else noTone(STEPPER_PUL);
+  // // -------------------- PUSHER (STEPPER) --------------------
+  // if (PS4.RStickY() > 50) {
+  //   digitalWrite(STEPPER_DIR, LOW);
+  //   tone(STEPPER_PUL, stepper_speed); 
+  // }
+  // else if (PS4.RStickY() < -50) {
+  //   digitalWrite(STEPPER_DIR, HIGH);
+  //   tone(STEPPER_PUL, stepper_speed);   
+  // }
+  // else noTone(STEPPER_PUL);
 
 
 
@@ -260,7 +209,7 @@ void loop() {
 
 
     // calculate motor speeds according to drive mode
-  int nominalSpeed = 2000;
+  int nominalSpeed = 60;
   int speedMultiplier = 1;
 
   if (PS4.Square() == 1) speedMultiplier = 2;
@@ -347,76 +296,14 @@ void loop() {
       break;
   }  
 
-  // update c620 status
-  //Wait for message to be received
-  twai_message_t message;
-  if (twai_receive(&message, pdMS_TO_TICKS(10000)) == ESP_OK) {
-      printf("Message received\n");
-  } else {
-      printf("Failed to receive message\n");
-      return;
-  }
+  // Serial.println(driveMode);
+  // Serial.println(c620targetSpeeds[1] + 1500);
 
-  //Process received message
-  short posHB = message.data[0] << 8;
-  short posLB = message.data[1];
-  short pos = posHB | posLB;
-  pos = map(pos, 0, 8191, 0, 360);
+  frontLeftWheel.writeMicroseconds(c620targetSpeeds[0] + 1500);
+  backLeftWheel.writeMicroseconds(c620targetSpeeds[1] + 1500);
+  frontRightWheel.writeMicroseconds(c620targetSpeeds[2] + 1500);
+  backRightWheel.writeMicroseconds(c620targetSpeeds[3] + 1500);
 
-  short rpmHB = message.data[2] << 8;
-  short rpmLB = message.data[3];
-  short rpm = rpmHB | rpmLB;
 
-  // c620StatusBuffer[message.identifier - 0x201][0] = pos;
-  c620StatusBuffer[message.identifier - 0x201][1] = rpm;
-
-  frontLeftWheel.read();
-  frontRightWheel.read();
-  backLeftWheel.read();
-  backRightWheel.read();
-
-  // set speed
-  frontLeftWheel.setSpeed(c620targetSpeeds[0]);
-  backLeftWheel.setSpeed(c620targetSpeeds[1]);
-  frontRightWheel.setSpeed(c620targetSpeeds[2]);
-  backRightWheel.setSpeed(c620targetSpeeds[3]);
-
-  // split into bytes
-  int c620targetAccels[4];
-  byte currentBytes[4][2];
-
-  c620targetAccels[0] = frontLeftWheel.control;
-  c620targetAccels[1] = backLeftWheel.control;
-  c620targetAccels[2] = frontRightWheel.control;
-  c620targetAccels[3] = backRightWheel.control;
-
-  for (int i = 0; i < 4; i++) {
-    byte currentHB = (c620targetAccels[i] >> 8) & 0xFF;
-    byte currentLB = c620targetAccels[i] & 0xFF;   
-
-    currentBytes[i][0] = currentHB;
-    currentBytes[i][1] = currentLB;
-  }
-
-  //Configure message to transmit
-  twai_message_t command;
-  command.identifier = 0x200;
-  command.extd = 0;
-  command.data_length_code = 8;
-  command.data[0] = currentBytes[0][0]; // motor 1
-  command.data[1] = currentBytes[0][1];
-  command.data[2] = currentBytes[1][0]; // motor 2
-  command.data[3] = currentBytes[1][1];
-  command.data[4] = currentBytes[2][0]; // motor 3
-  command.data[5] = currentBytes[2][1];
-  command.data[6] = currentBytes[3][0]; // motor 4
-  command.data[7] = currentBytes[3][1];
-
-  //Queue message for transmission
-  if (twai_transmit(&command, pdMS_TO_TICKS(1000)) == ESP_OK) {
-      // Serial.println("Message queued for transmission");
-  } else {
-      // Serial.println("Failed to queue message for transmission");
-  }
-
+  delay(10);
 }
