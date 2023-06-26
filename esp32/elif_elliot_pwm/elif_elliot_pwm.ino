@@ -32,7 +32,7 @@ bool lastSpeedDownButtonState = 0;
 Servo topRoller, bottomRoller;
 #define TOP_ROLLER 19
 #define BOTTOM_ROLLER 18
-int rollerSpeeds[4] = {0, 60, 100, 120};
+int rollerSpeeds[4] = {0, 65, 83, 102};
 int speedSelect = 0;
 
 // PUSHER (STEPPER), TAKE 5V SIGNALS
@@ -104,9 +104,9 @@ void setup() {
   backRightWheel.attach(C620_PWM_4);
 
 
-  // // -------------------- PUSHER (STEPPER) --------------------
-  // pinMode(STEPPER_PUL, OUTPUT);
-  // pinMode(STEPPER_DIR, OUTPUT);
+  // -------------------- PUSHER (STEPPER) --------------------
+  pinMode(STEPPER_PUL, OUTPUT);
+  pinMode(STEPPER_DIR, OUTPUT);
 
 
   // -------------------- SHOOTER (BLDC) --------------------
@@ -173,16 +173,16 @@ void loop() {
   bottomRoller.writeMicroseconds(1500 + rollerSpeeds[speedSelect]);
 
 
-  // // -------------------- PUSHER (STEPPER) --------------------
-  // if (PS4.RStickY() > 50) {
-  //   digitalWrite(STEPPER_DIR, LOW);
-  //   tone(STEPPER_PUL, stepper_speed); 
-  // }
-  // else if (PS4.RStickY() < -50) {
-  //   digitalWrite(STEPPER_DIR, HIGH);
-  //   tone(STEPPER_PUL, stepper_speed);   
-  // }
-  // else noTone(STEPPER_PUL);
+  // -------------------- PUSHER (STEPPER) --------------------
+  if (PS4.RStickY() > 50) {
+    digitalWrite(STEPPER_DIR, LOW);
+    tone(STEPPER_PUL, stepper_speed); 
+  }
+  else if (PS4.RStickY() < -50) {
+    digitalWrite(STEPPER_DIR, HIGH);
+    tone(STEPPER_PUL, stepper_speed);   
+  }
+  else noTone(STEPPER_PUL);
 
 
 
@@ -305,5 +305,5 @@ void loop() {
   backRightWheel.writeMicroseconds(c620targetSpeeds[3] + 1500);
 
 
-  delay(10);
+  // delay(10);
 }
